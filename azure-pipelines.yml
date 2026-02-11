@@ -1,0 +1,78 @@
+# Scalr VCS Task – Azure DevOps Pipelines
+# Stages: build/validate → deploy (create Scalr VCS task).
+# Docs: https://docs.scalr.io/docs/vcs#vcs-tasks
+#
+# Setup:
+#   1. Pipeline variables (secret): SCALR_HOSTNAME, SCALR_TOKEN
+#   2. REPOSITORY_ID = organization/project/repository-name (e.g. contoso/Platform/iac-repo)
+#   3. Scalr workspaces: same repo, Auto-queue runs = Never
+
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  # Azure DevOps: organization/project/repository-name. Set REPOSITORY_ID in Pipeline Variables
+  # (e.g. contoso/Platform/iac-repo) since org name is not in a single built-in variable.
+  REPOSITORY_ID: '$(System.TeamProject)/$(Build.Repository.Name)'
+
+stages:
+  - stage: Validate
+    displayName: Validate
+    jobs:
+      - job: ValidateCode
+        steps:
+          - checkout: self
+            fetchDepth: '0'
+
+          - script: |
+              set -e
+              curl -sL "https://github.com/opentofu/opentofu/releases/download/v1.11.4/tofu_1.11.4_linux_amd64.zip" -o tofu.zip
+              unzip -o tofu.zip && sudo mv tofu /usr/local/bin/ && tofu version
+            displayName: 'Install OpenTofu'
+
+          - script: |
+              tofu init -backend=false
+              tofu validate
+              tofu fmt -check -recursive -diff || true
+            displayName: 'OpenTofu validate and fmt'
+
+  - stage: Deploy
+    displayName: Trigger Scalr VCS Task
+    dependsOn: Validate
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: ScalrVcsTask
+        steps:
+          - checkout: self
+            fetchDepth: '0'
+
+          - script: |
+              set -e
+              curl -sL "https://github.com/Scalr/scalr-cli/releases/download/v0.17.6/scalr-cli_0.17.6_linux_amd64.zip" -o scalr-cli.zip
+              unzip scalr-cli.zip
+              sudo mv scalr /usr/local/bin/
+              scalr -version
+            displayName: 'Install Scalr CLI'
+
+          - script: |
+              set -e
+              export SCALR_HOSTNAME="$(SCALR_HOSTNAME)"
+              export SCALR_TOKEN="$(SCALR_TOKEN)"
+              BRANCH=$(echo $(Build.SourceBranch) | sed 's#refs/heads/##')
+              if ! scalr create-vcs-task \
+                --repository-id "$(REPOSITORY_ID)" \
+                --branch "$BRANCH" \
+                --commit-sha "$(Build.SourceVersion)"; then
+                echo "Failed to create Scalr VCS task"
+                exit 1
+              fi
+              echo "Scalr VCS task created successfully"
+            displayName: 'Create Scalr VCS Task'
+            env:
+              SCALR_HOSTNAME: $(SCALR_HOSTNAME)
+              SCALR_TOKEN: $(SCALR_TOKEN)

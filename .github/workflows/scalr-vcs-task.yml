@@ -1,0 +1,82 @@
+# Scalr VCS Task – GitHub Actions
+# Triggers OpenTofu runs in Scalr after validation passes.
+# Docs: https://docs.scalr.io/docs/vcs#vcs-tasks
+#
+# Setup:
+#   1. Add secrets: SCALR_HOSTNAME, SCALR_TOKEN (Settings → Secrets and variables → Actions)
+#   2. Set REPOSITORY_ID to your repo (e.g. myorg/my-repo) or use env from GitHub
+#   3. Ensure Scalr workspaces use this repo and have Auto-queue runs = Never
+
+name: Validate and trigger Scalr VCS Task
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  # Use your GitHub org/repo (e.g. myorg/infrastructure-repo)
+  REPOSITORY_ID: ${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install OpenTofu
+        run: |
+          curl -sL "https://github.com/opentofu/opentofu/releases/download/v1.11.4/tofu_1.11.4_linux_amd64.zip" -o tofu.zip
+          unzip tofu.zip && sudo mv tofu /usr/local/bin/ && tofu version
+
+      - name: OpenTofu validate and fmt check
+        run: |
+          tofu init -backend=false
+          tofu validate
+          tofu fmt -check -recursive -diff || true
+
+      # Add your tests/linting here (e.g. tflint, etc.)
+
+  scalr-vcs-task:
+    name: Trigger Scalr VCS Task
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Scalr CLI
+        run: |
+          curl -sL "https://github.com/Scalr/scalr-cli/releases/download/v0.17.6/scalr-cli_0.17.6_linux_amd64.zip" -o scalr-cli.zip
+          unzip scalr-cli.zip
+          sudo mv scalr /usr/local/bin/
+          scalr -version
+
+      - name: Configure Scalr
+        env:
+          SCALR_HOSTNAME: ${{ secrets.SCALR_HOSTNAME }}
+          SCALR_TOKEN: ${{ secrets.SCALR_TOKEN }}
+        run: |
+          echo "SCALR_HOSTNAME=$SCALR_HOSTNAME" >> $GITHUB_ENV
+          echo "SCALR_TOKEN=$SCALR_TOKEN" >> $GITHUB_ENV
+
+      - name: Create Scalr VCS Task
+        env:
+          SCALR_HOSTNAME: ${{ secrets.SCALR_HOSTNAME }}
+          SCALR_TOKEN: ${{ secrets.SCALR_TOKEN }}
+        run: |
+          if ! scalr create-vcs-task \
+            --repository-id "${{ env.REPOSITORY_ID }}" \
+            --branch "${GITHUB_REF#refs/heads/}" \
+            --commit-sha "${{ github.sha }}"; then
+            echo "Failed to create Scalr VCS task"
+            exit 1
+          fi
+          echo "Scalr VCS task created successfully"

@@ -1,0 +1,58 @@
+# Scalr VCS Task – Bitbucket Pipelines
+# Branch-specific: validate then trigger Scalr on main (or your default branch).
+# Docs: https://docs.scalr.io/docs/vcs#vcs-tasks
+#
+# Setup:
+#   1. Repository variables (secured): SCALR_HOSTNAME, SCALR_TOKEN
+#   2. REPOSITORY_ID = workspace/repository-name (e.g. myteam/terraform-repo)
+#   3. Scalr workspaces: same repo, Auto-queue runs = Never
+
+image: opentofu/opentofu:1.11.4
+
+definitions:
+  steps:
+    - step: &validate
+        name: Validate
+        script:
+          - tofu init -backend=false
+          - tofu validate
+          - tofu fmt -check -recursive -diff || true
+
+    - step: &scalr-vcs-task
+        name: Trigger Scalr VCS Task
+        image: atlassian/default-image:4
+        script:
+          - curl -sL "https://github.com/Scalr/scalr-cli/releases/download/v0.17.6/scalr-cli_0.17.6_linux_amd64.zip" -o scalr-cli.zip
+          - unzip scalr-cli.zip
+          - chmod +x scalr
+          - ./scalr -version
+          - |
+            export SCALR_HOSTNAME="${SCALR_HOSTNAME}"
+            export SCALR_TOKEN="${SCALR_TOKEN}"
+            REPOSITORY_ID="${REPOSITORY_ID:-${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}}"
+            if ! ./scalr create-vcs-task \
+              --repository-id "${REPOSITORY_ID}" \
+              --branch "${BITBUCKET_BRANCH}" \
+              --commit-sha "${BITBUCKET_COMMIT}"; then
+              echo "Failed to create Scalr VCS task"
+              exit 1
+            fi
+            echo "Scalr VCS task created successfully"
+
+pipelines:
+  branches:
+    main:
+      - step: *validate
+      - step: *scalr-vcs-task
+
+  pull-requests:
+    '**':
+      - step: *validate
+
+# Optional: use a custom branch or override REPOSITORY_ID per pipeline
+#  custom:
+#    'release/*':
+#      - step: *validate
+#      - step: *scalr-vcs-task
+#        variables:
+#          REPOSITORY_ID: $REPOSITORY_ID

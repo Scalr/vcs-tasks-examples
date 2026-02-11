@@ -1,0 +1,61 @@
+# Scalr VCS Task – GitLab CI/CD
+# Multi-stage pipeline: test → trigger Scalr run for the commit.
+# Docs: https://docs.scalr.io/docs/vcs#vcs-tasks
+#
+# Setup:
+#   1. CI/CD variables (masked): SCALR_HOSTNAME, SCALR_TOKEN
+#   2. Set REPOSITORY_ID to your GitLab path (e.g. mygroup/my-project) or use CI_PROJECT_PATH
+#   3. Scalr workspaces: same repo, Auto-queue runs = Never
+
+stages:
+  - validate
+  - deploy
+
+variables:
+  # GitLab: use group/project (e.g. mygroup/infrastructure-repo)
+  REPOSITORY_ID: $CI_PROJECT_PATH
+
+.validate:
+  image: opentofu/opentofu:1.11.4
+  before_script:
+    - cd "${TF_ROOT:-.}"
+
+validate:
+  stage: validate
+  extends: .validate
+  script:
+    - tofu init -backend=false
+    - tofu validate
+    - tofu fmt -check -recursive -diff || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# Trigger Scalr only on main branch after merge (adjust branch to your default)
+scalr-vcs-task:
+  stage: deploy
+  image:
+    name: debian:bookworm-slim
+    entrypoint: [""]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
+    - |
+      curl -sL "https://github.com/Scalr/scalr-cli/releases/download/v0.17.6/scalr-cli_0.17.6_linux_amd64.zip" -o scalr-cli.zip
+      unzip scalr-cli.zip
+      mv scalr /usr/local/bin/
+      scalr -version
+    - export SCALR_HOSTNAME="${SCALR_HOSTNAME}"
+    - export SCALR_TOKEN="${SCALR_TOKEN}"
+  script:
+    - |
+      if ! scalr create-vcs-task \
+        --repository-id "${REPOSITORY_ID}" \
+        --branch "${CI_COMMIT_REF_NAME}" \
+        --commit-sha "${CI_COMMIT_SHA}"; then
+        echo "Failed to create Scalr VCS task"
+        exit 1
+      fi
+      echo "Scalr VCS task created successfully"
+  variables:
+    SCALR_HOSTNAME: $SCALR_HOSTNAME
+    SCALR_TOKEN: $SCALR_TOKEN
