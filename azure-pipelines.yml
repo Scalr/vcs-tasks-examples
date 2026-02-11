@@ -32,7 +32,7 @@ stages:
           - script: |
               set -e
               curl -sL "https://github.com/opentofu/opentofu/releases/download/v1.11.4/tofu_1.11.4_linux_amd64.zip" -o tofu.zip
-              unzip -o tofu.zip && sudo mv tofu /usr/local/bin/ && tofu version
+              unzip -o tofu.zip -d /tmp/tofu-install && sudo mv /tmp/tofu-install/tofu /usr/local/bin/ && tofu version
             displayName: 'Install OpenTofu'
 
           - script: |
