@@ -64,6 +64,10 @@ jobs:
           SCALR_HOSTNAME: ${{ secrets.SCALR_HOSTNAME }}
           SCALR_TOKEN: ${{ secrets.SCALR_TOKEN }}
         run: |
+          if [ -z "$SCALR_HOSTNAME" ] || [ -z "$SCALR_TOKEN" ]; then
+            echo "::error::Scalr CLI is not configured: set SCALR_HOSTNAME and SCALR_TOKEN secrets (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
           echo "SCALR_HOSTNAME=$SCALR_HOSTNAME" >> $GITHUB_ENV
           echo "SCALR_TOKEN=$SCALR_TOKEN" >> $GITHUB_ENV
 

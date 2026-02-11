@@ -29,6 +29,10 @@ definitions:
           - |
             export SCALR_HOSTNAME="${SCALR_HOSTNAME}"
             export SCALR_TOKEN="${SCALR_TOKEN}"
+            if [ -z "${SCALR_HOSTNAME}" ] || [ -z "${SCALR_TOKEN}" ]; then
+              echo "Error: Scalr CLI is not configured. Set SCALR_HOSTNAME and SCALR_TOKEN repository variables (Repository settings → Pipelines → Repository variables)"
+              exit 1
+            fi
             REPOSITORY_ID="${REPOSITORY_ID:-${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}}"
             if ! ./scalr create-vcs-task \
               --repository-id "${REPOSITORY_ID}" \

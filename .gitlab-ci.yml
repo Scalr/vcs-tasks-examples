@@ -48,6 +48,10 @@ scalr-vcs-task:
     - export SCALR_TOKEN="${SCALR_TOKEN}"
   script:
     - |
+      if [ -z "${SCALR_HOSTNAME}" ] || [ -z "${SCALR_TOKEN}" ]; then
+        echo "Error: Scalr CLI is not configured. Set SCALR_HOSTNAME and SCALR_TOKEN in CI/CD variables (Settings → CI/CD → Variables)"
+        exit 1
+      fi
       if ! scalr create-vcs-task \
         --repository-id "${REPOSITORY_ID}" \
         --branch "${CI_COMMIT_REF_NAME}" \

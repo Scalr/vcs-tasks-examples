@@ -61,6 +61,10 @@ stages:
 
           - script: |
               set -e
+              if [ -z "${SCALR_HOSTNAME}" ] || [ -z "${SCALR_TOKEN}" ]; then
+                echo "##vso[task.logissue type=error]Scalr CLI is not configured: set SCALR_HOSTNAME and SCALR_TOKEN pipeline variables (Pipeline → Edit → Variables)"
+                exit 1
+              fi
               export SCALR_HOSTNAME="$(SCALR_HOSTNAME)"
               export SCALR_TOKEN="$(SCALR_TOKEN)"
               BRANCH=$(echo $(Build.SourceBranch) | sed 's#refs/heads/##')
