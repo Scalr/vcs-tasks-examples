@@ -69,9 +69,7 @@ Never commit tokens; use your CI/CD’s secret management.
 | GitHub Actions   | [.github/workflows/scalr-vcs-task.yml](.github/workflows/scalr-vcs-task.yml) | Multi-job: validate → Scalr VCS task |
 | GitLab CI/CD     | [.gitlab-ci.yml](.gitlab-ci.yml)             | Stages: test → build → deploy (VCS task) |
 | Azure DevOps     | [azure-pipelines.yml](azure-pipelines.yml)   | Stages with conditional Scalr trigger |
-| Jenkins         | [Jenkinsfile](Jenkinsfile)                   | Declarative pipeline + credentials   |
 | Bitbucket       | [bitbucket-pipelines.yml](bitbucket-pipelines.yml) | Branch-based deployment with VCS task |
-| CircleCI        | [.circleci/config.yml](.circleci/config.yml) | Workflows with job dependencies      |
 
 Each example includes:
 
